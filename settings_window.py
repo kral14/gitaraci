@@ -1,4 +1,4 @@
-# settings_window.py
+# settings_window.py (Loglama ilə)
 import sys
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QCheckBox,
@@ -14,6 +14,11 @@ class SettingsWindow(QDialog):
         self.setMinimumWidth(350)
         self.main_app = parent
         self.settings = current_settings.copy()
+        
+        # --- LOGLAMA ---
+        print("\n[LOG] Ayarlar pəncərəsi açılır. Mövcud ayarlar:")
+        print(self.settings)
+        # --- LOGLAMA SONU ---
 
         layout = QVBoxLayout(self)
 
@@ -68,8 +73,15 @@ class SettingsWindow(QDialog):
         layout.addWidget(button_box)
 
     def update_setting(self, key, value):
+        # --- LOGLAMA ---
+        print(f"[LOG] Checkbox klikləndi: '{key}' ayarı '{value}' olaraq dəyişdirilir.")
+        # --- LOGLAMA SONU ---
         self.settings[key] = value
 
     def accept_changes(self):
+        # --- LOGLAMA ---
+        print("[LOG] 'OK' düyməsi basıldı. Son ayarlar əsas proqrama göndərilir:")
+        print(self.settings)
+        # --- LOGLAMA SONU ---
         self.main_app.apply_and_save_settings(self.settings)
         self.accept()

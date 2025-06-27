@@ -1,4 +1,4 @@
-# git_araci.py (Tam və Düzəldilmiş Versiya)
+# git_araci.py (SON VƏ YEKUN VERSİYA)
 import sys
 import os
 import git
@@ -11,17 +11,30 @@ from PyQt6.QtWidgets import (
     QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QTextEdit, QSystemTrayIcon, QMenu, QLineEdit, QGroupBox
 )
-from PyQt6.QtGui import QPalette, QColor, QIcon, QFont, QAction, QMouseEvent
+from PyQt6.QtGui import QIcon, QFont, QAction, QMouseEvent
 from PyQt6.QtCore import Qt, QSize, QTimer, QPoint
 
 if sys.platform == 'win32':
     import winreg
 
-# DİGƏR FAYLLARDAN İMPORTLAR
 from settings_window import SettingsWindow
 from gite_hazirla import PrepareRepoTab
+# EXE faylı üçün resursların yolunu təyin edən funksiya
+def resource_path(relative_path):
+    """ Həm skript, həm də EXE üçün resursların yolunu düzgün qaytarır. """
+    try:
+        # PyInstaller müvəqqəti qovluq yaradır və yolu _MEIPASS-da saxlayır
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
-# Stil kodları (dəyişməyib)
+# Ayarlar faylının istifadəçi qovluğunda saxlanması
+APP_DATA_DIR = os.path.join(os.getenv('APPDATA'), 'GitAraci')
+if not os.path.exists(APP_DATA_DIR):
+    os.makedirs(APP_DATA_DIR)
+SETTINGS_FILE = os.path.join(APP_DATA_DIR, 'settings.json')
+# DÜZƏLİŞ EDİLMİŞ STİL KODLARI
 LIGHT_THEME_STYLESHEET = """
     QMainWindow, QWidget, QGroupBox { background-color: #f0f0f0; color: #000000; }
     QGroupBox { border: 1px solid #c4c4c4; margin-top: 10px; }
@@ -37,6 +50,9 @@ LIGHT_THEME_STYLESHEET = """
     QLabel { color: #000000; }
     QHeaderView::section { background-color: #e1e1e1; border: 1px solid #c4c4c4; padding: 4px; }
     QStatusBar { background-color: #e1e1e1; }
+    QCheckBox { padding: 5px; }
+    QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #777; border-radius: 3px; }
+    QCheckBox::indicator:checked { background-color: #0078d7; border-color: #005a9e; image: url(C:/Windows/System32/shell32.dll,277,16,16); }
 """
 DARK_THEME_STYLESHEET = """
     QMainWindow, QWidget, QGroupBox { background-color: #2b2b2b; color: #ffffff; }
@@ -50,69 +66,76 @@ DARK_THEME_STYLESHEET = """
     QPushButton:hover { background-color: #454545; }
     QPushButton:pressed { background-color: #4f4f4f; }
     QTextEdit, QLineEdit, QTableWidget { background-color: #252525; color: #ffffff; border: 1px solid #4f4f4f; }
-    QLabel { color: #ffffff; }
+    QLabel, QCheckBox { color: #ffffff; padding: 5px; }
     QHeaderView::section { background-color: #3c3c3c; border: 1px solid #4f4f4f; padding: 4px; color: #ffffff; }
     QStatusBar { background-color: #3c3c3c; color: #ffffff; }
     QTableWidget::item:selected { background-color: #0078d7; color: #ffffff; }
+    QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #888; border-radius: 3px; background-color: #444; }
+    QCheckBox::indicator:checked { background-color: #0078d7; border-color: #009cff; image: url(C:/Windows/System32/shell32.dll,277,16,16); }
 """
 SETTINGS_FILE = 'settings.json'
 
-class IconWidget(QWidget):
-    # Bu sinifdə dəyişiklik yoxdur
+class IconWidget(QPushButton):
     def __init__(self, parent_window, initial_pos, on_top=True):
         super().__init__()
         self.parent_window = parent_window
         self.is_waiting_for_second_click = False
         self.drag_pos = None
+        
         flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
         if on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.layout = QVBoxLayout(self)
-        self.button = QPushButton(self)
-        self.button.setIcon(self.parent_window.windowIcon())
-        self.button.setIconSize(QSize(48, 48))
-        self.button.setFixedSize(QSize(52, 52))
-        self.button.setStyleSheet("background: transparent; border: none;")
-        self.button.clicked.connect(self.on_icon_click)
-        self.layout.addWidget(self.button)
+        
+        self.setIcon(self.parent_window.windowIcon())
+        self.setIconSize(QSize(48, 48))
+        self.setFixedSize(QSize(52, 52))
+        self.setStyleSheet("background: transparent; border: none;")
+        self.clicked.connect(self.on_icon_click)
+        
         self.click_timer = QTimer(self)
         self.click_timer.setSingleShot(True)
         self.click_timer.timeout.connect(self.reset_click_state)
+        
         if initial_pos:
             self.move(initial_pos)
 
     def on_icon_click(self):
         if self.is_waiting_for_second_click:
             self.click_timer.stop()
-            self.button.setStyleSheet("border: 3px solid lightgreen; background-color: rgba(0, 255, 0, 0.3); border-radius: 28px;")
+            self.setStyleSheet("border: 3px solid lightgreen; background-color: rgba(0, 255, 0, 0.3); border-radius: 28px;")
             QTimer.singleShot(150, self.restore_main_window)
         else:
             self.is_waiting_for_second_click = True
-            self.button.setStyleSheet("border: 3px solid red; background-color: rgba(255, 0, 0, 0.3); border-radius: 28px;")
+            self.setStyleSheet("border: 3px solid red; background-color: rgba(255, 0, 0, 0.3); border-radius: 28px;")
             self.click_timer.start(2000)
             
     def restore_main_window(self):
         self.parent_window.settings['icon_position'] = {'x': self.pos().x(), 'y': self.pos().y()}
         self.parent_window.save_settings()
-        self.close()
+        self.hide()
         self.parent_window.show_and_raise()
+        self.deleteLater()
         
     def reset_click_state(self):
         self.is_waiting_for_second_click = False
-        self.button.setStyleSheet("background: transparent; border: none;")
-        
+        self.setStyleSheet("background: transparent; border: none;")
+    
     def mousePressEvent(self, event: QMouseEvent):
+        super().mousePressEvent(event)
         if event.button() == Qt.MouseButton.LeftButton:
             self.drag_pos = event.globalPosition().toPoint()
-            event.accept()
             
     def mouseMoveEvent(self, event: QMouseEvent):
+        super().mouseMoveEvent(event)
         if event.buttons() == Qt.MouseButton.LeftButton and self.drag_pos is not None:
             self.move(self.pos() + event.globalPosition().toPoint() - self.drag_pos)
             self.drag_pos = event.globalPosition().toPoint()
-            event.accept()
+            
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        super().mouseReleaseEvent(event)
+        self.drag_pos = None
 
 
 class GitApp(QMainWindow):
@@ -121,12 +144,12 @@ class GitApp(QMainWindow):
         self.settings = self.load_settings()
         self.setWindowTitle('Git Yönetim Aracı')
         self.setGeometry(300, 300, 800, 600)
-        self.setWindowIcon(QIcon(self.style().standardIcon(self.style().StandardPixmap.SP_DirIcon)))
-        self.repo_path = self.settings.get('last_repo_path', None)
-        self.repo = None # Əsas anbar obyekti
-        self.history_repo = None # Tarixçə səhifəsi üçün istifadə edilən anbar
-        self.temp_clone_dir = None # Müvəqqəti klon üçün qovluq
+        self.setWindowIcon(QIcon('app_icon.jpg'))
 
+        self.repo_path = self.settings.get('last_repo_path', None)
+        self.repo = None
+        self.history_repo = None
+        self.temp_clone_dir = None
         self.icon_widget = None
         self.main_widget = QWidget()
         self.main_layout = QVBoxLayout(self.main_widget)
@@ -139,17 +162,18 @@ class GitApp(QMainWindow):
         self.create_prepare_tab()
         self.statusBar().showMessage('Lütfen bir Git proje klasörü seçin.')
         self.create_tray_icon()
+        
         self.apply_settings()
+
         if self.repo_path and os.path.exists(self.repo_path):
             self.select_repo_directory(path=self.repo_path)
         self.set_light_theme()
         self.prepare_tab.update_path_display(self.repo_path)
-        # Başlanğıcda tarixçə səhifəsindəki yolu da doldur
-        self.history_local_path_input.setText(self.repo_path or "")
+        if hasattr(self, 'history_local_path_input'):
+            self.history_local_path_input.setText(self.repo_path or "")
 
 
     def create_top_bar(self):
-        # Bu funksiyada dəyişiklik yoxdur
         top_bar_widget = QWidget()
         top_bar_layout = QHBoxLayout(top_bar_widget)
         top_bar_layout.setContentsMargins(0, 5, 0, 5)
@@ -173,29 +197,22 @@ class GitApp(QMainWindow):
         self.main_layout.addWidget(top_bar_widget)
 
     def create_prepare_tab(self):
-        # Bu funksiyada dəyişiklik yoxdur
         self.prepare_tab = PrepareRepoTab(self)
         self.tabs.addTab(self.prepare_tab, "Gite Hazırla")
 
     def refresh_all_tabs(self):
-        # Yalnız əsas pəncərənin tarixçə cədvəlini yeniləyir (əgər lokal seçilidirsə)
         if self.history_repo is self.repo:
             self.show_local_history()
 
     def iconify_window(self):
-        # Bu funksiyada dəyişiklik yoxdur
         self.hide()
         pos_data = self.settings.get('icon_position')
-        initial_pos = QPoint(pos_data['x'], pos_data['y']) if pos_data else None
+        initial_pos = self.pos() if not pos_data else QPoint(pos_data['x'], pos_data['y'])
         on_top = self.settings.get('iconify_on_top', True)
         self.icon_widget = IconWidget(self, initial_pos, on_top)
-        if not initial_pos:
-            main_geo = self.geometry()
-            self.icon_widget.move(main_geo.center() - self.icon_widget.rect().center())
         self.icon_widget.show()
 
     def create_tray_icon(self):
-        # Bu funksiyada dəyişiklik yoxdur
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(self.windowIcon())
         tray_menu = QMenu()
@@ -209,20 +226,18 @@ class GitApp(QMainWindow):
         self.tray_icon.activated.connect(self.on_tray_icon_activated)
 
     def on_tray_icon_activated(self, reason):
-        # Bu funksiyada dəyişiklik yoxdur
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.show_and_raise()
 
     def show_and_raise(self):
-        # Bu funksiyada dəyişiklik yoxdur
         if self.icon_widget and self.icon_widget.isVisible():
             self.icon_widget.restore_main_window()
         else:
             self.showNormal()
+            self.raise_()
             self.activateWindow()
 
     def create_push_tab(self):
-        # Bu funksiyada dəyişiklik yoxdur
         self.push_tab = QWidget()
         layout = QVBoxLayout(self.push_tab)
         
@@ -255,12 +270,10 @@ class GitApp(QMainWindow):
         
         self.tabs.addTab(self.push_tab, 'Gite Gönder')
 
-    # DƏYİŞİKLİK EDİLMİŞ FUNKSİYA
     def create_history_tab(self):
         self.history_tab = QWidget()
         layout = QVBoxLayout(self.history_tab)
         
-        # Lokal Anbar Bölməsi
         local_group = QGroupBox("Lokal Anbar")
         local_layout = QHBoxLayout()
         self.history_local_path_input = QLineEdit()
@@ -273,7 +286,6 @@ class GitApp(QMainWindow):
         local_group.setLayout(local_layout)
         layout.addWidget(local_group)
         
-        # Uzaq Anbar Bölməsi
         remote_group = QGroupBox("Uzaq Anbar (GitHub)")
         remote_layout = QHBoxLayout()
         self.history_remote_url_input = QLineEdit()
@@ -284,7 +296,6 @@ class GitApp(QMainWindow):
         remote_group.setLayout(remote_layout)
         layout.addWidget(remote_group)
         
-        # Commit cədvəli
         self.commit_table = QTableWidget()
         self.commit_table.setColumnCount(4)
         self.commit_table.setHorizontalHeaderLabels(['Hash', 'Mesaj', 'Yazar', 'Tarih'])
@@ -294,7 +305,6 @@ class GitApp(QMainWindow):
         self.commit_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.commit_table)
         
-        # Əməliyyat düymələri
         button_layout = QHBoxLayout()
         self.download_button = QPushButton('Seçileni İndir (ZIP)')
         self.delete_button = QPushButton('Seçili Commiti Sil (Lokal Reset)')
@@ -304,7 +314,6 @@ class GitApp(QMainWindow):
         button_layout.addWidget(self.delete_button)
         layout.addLayout(button_layout)
         
-        # Düymələrin funksiyaları
         browse_history_button.clicked.connect(self.browse_for_history_path)
         show_local_history_button.clicked.connect(self.show_local_history)
         show_remote_history_button.clicked.connect(self.show_remote_history)
@@ -327,7 +336,7 @@ class GitApp(QMainWindow):
         try:
             repo = git.Repo(path)
             self.history_repo = repo
-            self.delete_button.setEnabled(True) # Lokal üçün silmə aktivdir
+            self.delete_button.setEnabled(True)
             self.statusBar().showMessage(f"Lokal anbarın tarixçəsi göstərilir: {path}")
             self.populate_history_table(list(repo.iter_commits('--all', max_count=200)))
         except git.InvalidGitRepositoryError:
@@ -341,7 +350,6 @@ class GitApp(QMainWindow):
             QMessageBox.warning(self, "Xəta", "Zəhmət olmasa, düzgün HTTPS Git URL daxil edin.")
             return
 
-        # Köhnə müvəqqəti qovluğu təmizlə
         if self.temp_clone_dir and os.path.exists(self.temp_clone_dir):
             shutil.rmtree(self.temp_clone_dir, ignore_errors=True)
         
@@ -349,10 +357,9 @@ class GitApp(QMainWindow):
         self.statusBar().showMessage(f"Uzaq depo klonlanır... {url}")
         
         try:
-            # Deponu müvəqqəti qovluğa klonla
             cloned_repo = git.Repo.clone_from(url, self.temp_clone_dir, no_checkout=True)
             self.history_repo = cloned_repo
-            self.delete_button.setEnabled(False) # Uzaq depo üçün silmə passivdir
+            self.delete_button.setEnabled(False)
             self.statusBar().showMessage("Uzaq depo tarixçəsi göstərilir.")
             self.populate_history_table(list(cloned_repo.iter_commits('--all', max_count=200)))
         except Exception as e:
@@ -374,27 +381,28 @@ class GitApp(QMainWindow):
             self.commit_table.setItem(row_position, 3, QTableWidgetItem(commit.authored_datetime.strftime('%Y-%m-%d %H:%M')))
 
     def open_settings_window(self):
-        # Bu funksiyada dəyişiklik yoxdur
         dialog = SettingsWindow(self, self.settings)
         dialog.exec()
         
     def apply_and_save_settings(self, new_settings):
-        # Bu funksiyada dəyişiklik yoxdur
         self.settings = new_settings
         self.apply_settings()
         self.save_settings()
 
     def apply_settings(self):
-        # Bu funksiyada dəyişiklik yoxdur
         always_on_top = self.settings.get("always_on_top", False)
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, always_on_top)
+        if always_on_top:
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        else:
+            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
+        
         if sys.platform == 'win32':
             startup_enabled = self.settings.get("start_on_startup", False)
             self.set_startup(startup_enabled)
+        
         self.show()
 
     def set_startup(self, enable=True):
-        # Bu funksiyada dəyişiklik yoxdur
         if not sys.platform == 'win32': return
         app_name = "GitAraci"
         app_path = f'"{sys.executable}" "{os.path.abspath(__file__)}"'
@@ -404,15 +412,15 @@ class GitApp(QMainWindow):
             if enable:
                 winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, app_path)
             else:
-                winreg.DeleteValue(key, app_name)
+                try:
+                    winreg.DeleteValue(key, app_name)
+                except FileNotFoundError:
+                    pass
             winreg.CloseKey(key)
-        except FileNotFoundError:
-            if not enable: pass
         except Exception as e:
             print(f"Windows Registry ilə işləyərkən xəta: {e}")
 
     def load_settings(self):
-        # Bu funksiyada dəyişiklik yoxdur
         if os.path.exists(SETTINGS_FILE):
             try:
                 with open(SETTINGS_FILE, 'r') as f: return json.load(f)
@@ -420,13 +428,13 @@ class GitApp(QMainWindow):
         return {}
 
     def save_settings(self):
-        # Bu funksiyada dəyişiklik yoxdur
         try:
-            with open(SETTINGS_FILE, 'w') as f: json.dump(self.settings, f, indent=4)
-        except IOError: self.statusBar().showMessage("Ayarlar yadda saxlanıla bilmədi.")
+            with open(SETTINGS_FILE, 'w') as f:
+                json.dump(self.settings, f, indent=4)
+        except IOError:
+            self.statusBar().showMessage("Ayarlar yadda saxlanıla bilmədi.")
             
     def closeEvent(self, event):
-        # Proqram bağlananda müvəqqəti qovluğu sil
         if self.temp_clone_dir and os.path.exists(self.temp_clone_dir):
             shutil.rmtree(self.temp_clone_dir, ignore_errors=True)
             
@@ -440,20 +448,16 @@ class GitApp(QMainWindow):
             self.quit_application()
 
     def quit_application(self):
-        # Bu funksiyada dəyişiklik yoxdur
         self.tray_icon.hide()
         QApplication.instance().quit()
 
     def set_light_theme(self):
-        # Bu funksiyada dəyişiklik yoxdur
-        self.setStyleSheet(LIGHT_THEME_STYLESHEET + "#DeleteButton { background-color: #ffcccc; color: black; } #DeleteButton:hover { background-color: #ffb8b8; }")
+        self.setStyleSheet(LIGHT_THEME_STYLESHEET)
 
     def set_dark_theme(self):
-        # Bu funksiyada dəyişiklik yoxdur
-        self.setStyleSheet(DARK_THEME_STYLESHEET + "#DeleteButton { background-color: #8b0000; color: white; } #DeleteButton:hover { background-color: #a10000; }")
+        self.setStyleSheet(DARK_THEME_STYLESHEET)
 
     def log_message(self, message, color_name="default"):
-        # Bu funksiyada dəyişiklik yoxdur
         current_style = self.styleSheet()
         if "background-color: #2b2b2b" in current_style:
             default_color_name = "#ffffff"
@@ -466,15 +470,12 @@ class GitApp(QMainWindow):
         QApplication.processEvents()
 
     def log_success(self, message):
-        # Bu funksiyada dəyişiklik yoxdur
         self.log_message(message, "limegreen")
 
     def log_error(self, message):
-        # Bu funksiyada dəyişiklik yoxdur
         self.log_message(message, "red")
 
     def select_repo_directory(self, path=None):
-        # Bu funksiya əsasən digər səhifələrə təsir edir
         if not path:
             path = QFileDialog.getExistingDirectory(self, "Git Proje Klasörü Seç")
         if path:
@@ -489,7 +490,6 @@ class GitApp(QMainWindow):
                 self.repo = None
             
             self.settings['last_repo_path'] = path
-            # Əsas pəncərədəki və tarixçə səhifəsindəki yolları yenilə
             self.repo_label.setText(f'Proje Klasörü: {self.repo_path}')
             self.history_local_path_input.setText(self.repo_path)
             
@@ -499,7 +499,6 @@ class GitApp(QMainWindow):
             self.prepare_tab.update_path_display(self.repo_path)
 
     def push_changes(self):
-        # Bu funksiyada dəyişiklik yoxdur
         if not self.repo: return
         
         remote_url = self.remote_url_input.text().strip()
@@ -561,7 +560,6 @@ class GitApp(QMainWindow):
             self.log_message("Commit əməliyyatı ləğv edildi.")
 
     def download_commit(self):
-        # Bu funksiya indi 'history_repo' istifadə edir
         if not self.history_repo:
             QMessageBox.warning(self, "Məlumat", "Zəhmət olmasa, əvvəlcə bir tarixçə göstərin.")
             return
@@ -584,7 +582,6 @@ class GitApp(QMainWindow):
                 QMessageBox.critical(self, 'Hata', f'İndirme sırasında bir hata oluştu:\n{e}')
 
     def delete_commit(self):
-        # Bu funksiya indi 'history_repo' istifadə edir və yalnız lokalda işləyir
         if not self.history_repo or not self.delete_button.isEnabled():
             QMessageBox.warning(self, "Məlumat", "Bu əməliyyat yalnız lokal tarixçə üçün keçərlidir.")
             return
@@ -609,7 +606,7 @@ class GitApp(QMainWindow):
                 self.history_repo.git.reset('--hard', commit_hash)
                 self.statusBar().showMessage(f'Proje {commit_hash} versiyonuna geri alındı. Sonraki commitler lokal olaraq silindi.')
                 QMessageBox.information(self, 'İşlem Tamamlandı', 'Proje seçilen versiyona başarıyla sıfırlandı.')
-                self.show_local_history() # Siyahını yenilə
+                self.show_local_history()
             except Exception as e:
                 QMessageBox.critical(self, 'Hata', f'Reset işlemi sırasında bir hata oluştu:\n{e}')
 

@@ -2,11 +2,12 @@
     "always_on_top": false,
     "minimize_to_tray": false,
     "icon_position": {
-        "x": 347,
-        "y": 179
+        "x": 405,
+        "y": 545
     },
     "start_on_startup": false,
     "last_repo_path": "C:/Users/nesib/OneDrive/Masa\u00fcst\u00fc/git",
     "username": "nesib",
-    "email": "nesib20@gmail.com"
+    "email": "nesib20@gmail.com",
+    "iconify_on_top": false
 }
