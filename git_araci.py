@@ -200,12 +200,10 @@ class GitApp(QMainWindow):
             self.showNormal()
             self.activateWindow()
 
-    # DƏYİŞİKLİK EDİLMİŞ FUNKSİYA
     def create_push_tab(self):
         self.push_tab = QWidget()
         layout = QVBoxLayout(self.push_tab)
         
-        # 1. Lokal qovluq yolu
         repo_layout = QHBoxLayout()
         self.repo_label = QLabel('Proje Klasörü: Seçilmedi')
         browse_button = QPushButton('Gözat...')
@@ -214,21 +212,18 @@ class GitApp(QMainWindow):
         repo_layout.addWidget(browse_button)
         layout.addLayout(repo_layout)
 
-        # 2. Uzaq anbar (GitHub) URL-i
         remote_layout = QHBoxLayout()
         remote_layout.addWidget(QLabel("GitHub Depo Linki:"))
-        self.remote_url_input = QLineEdit() # URL üçün yeni input xanası
+        self.remote_url_input = QLineEdit()
         self.remote_url_input.setPlaceholderText("https://github.com/username/repo.git")
         remote_layout.addWidget(self.remote_url_input)
         layout.addLayout(remote_layout)
         
-        # 3. Göndərmə düyməsi
         self.push_button = QPushButton('Değişiklikleri Gite Gönder')
         self.push_button.setEnabled(False) 
         self.push_button.clicked.connect(self.push_changes)
         layout.addWidget(self.push_button)
         
-        # 4. Proses monitoru
         layout.addWidget(QLabel("Proses Monitoru:"))
         self.log_monitor = QTextEdit()
         self.log_monitor.setReadOnly(True)
@@ -350,16 +345,14 @@ class GitApp(QMainWindow):
     def log_error(self, message):
         self.log_message(message, "red")
 
-    # DƏYİŞİKLİK EDİLMİŞ FUNKSİYA
     def select_repo_directory(self, path=None):
         if not path:
             path = QFileDialog.getExistingDirectory(self, "Git Proje Klasörü Seç")
         if path:
             self.repo_path = path
-            self.remote_url_input.clear() # Yeni qovluq seçildikdə URL xanasını təmizlə
+            self.remote_url_input.clear()
             try:
                 self.repo = git.Repo(path)
-                # Əgər qovluqda 'origin' varsa, URL-i avtomatik xanaya yaz
                 if 'origin' in self.repo.remotes:
                     origin_url = self.repo.remotes.origin.url
                     self.remote_url_input.setText(origin_url)
@@ -380,7 +373,6 @@ class GitApp(QMainWindow):
     def push_changes(self):
         if not self.repo: return
         
-        # Daxil edilmiş URL-i al və yoxla
         remote_url = self.remote_url_input.text().strip()
         if not remote_url:
             QMessageBox.warning(self, "Xəta", "Zəhmət olmasa, GitHub depo linkini daxil edin.")
@@ -396,7 +388,6 @@ class GitApp(QMainWindow):
         commit_message, ok = QInputDialog.getText(self, 'Commit Mesajı', 'Dəyişikliyi təsvir edin:')
         if ok and commit_message:
             try:
-                # 'origin' remote-unu yoxla və yenilə/yarat
                 self.log_message(f"Uzaq anbar (remote) '{remote_url}' olaraq tənzimlənir...")
                 if 'origin' in self.repo.remotes:
                     origin = self.repo.remotes.origin
@@ -412,14 +403,29 @@ class GitApp(QMainWindow):
                 self.log_message(f"Commit yaradılır: '{commit_message}'...")
                 self.repo.index.commit(commit_message)
                 self.log_message("Uzaq depoya (origin) qoşulur...")
-                active_branch = self.repo.active_branch
                 origin = self.repo.remote(name='origin')
                 
-                self.log_message(f"'{active_branch.name}' filialı GitHub-a göndərilir (push)...")
-                push_info = origin.push(refspec=f'{active_branch.name}:{active_branch.name}', set_upstream=True)
+                # --- YENİ MƏNTİQ ("Detached HEAD" XƏTASININ HƏLLİ) ---
+                refspec = ''
+                try:
+                    # Normal vəziyyətdə aktiv filialı götür
+                    active_branch = self.repo.active_branch
+                    branch_name = active_branch.name
+                    refspec = f'{branch_name}:{branch_name}'
+                    self.log_message(f"'{branch_name}' filialı GitHub-a göndərilir (push)...")
+                except TypeError:
+                    # "Detached HEAD" vəziyyətində 'main' filialına göndər
+                    branch_name = 'main'
+                    refspec = f'HEAD:{branch_name}'
+                    self.log_message(f"XƏBƏRDARLIQ: Anbar birbaşa bir commit-ə bağlıdır ('detached HEAD'). Dəyişikliklər uzaq depodakı '{branch_name}' filialına göndərilir.", "orange")
+                
+                # Göndərmə əməliyyatı
+                push_info = origin.push(refspec=refspec, set_upstream=True)
+                # --- YENİ MƏNTİQİN SONU ---
                 
                 if push_info[0].flags & git.PushInfo.ERROR:
                     self.log_error(f"XƏTA! Dəyişikliklər göndərilə bilmədi: {push_info[0].summary}")
+                    QMessageBox.critical(self, "Xəta", f"Push əməliyyatı zamanı xəta:\n{push_info[0].summary}")
                 else:
                     self.log_success("Əməliyyat uğurla tamamlandı! Bütün dəyişikliklər GitHub-a göndərildi.")
                     QMessageBox.information(self, 'Uğurlu', 'Dəyişiklikləriniz uğurla GitHub-a göndərildi.')
@@ -436,13 +442,14 @@ class GitApp(QMainWindow):
             self.statusBar().showMessage("Anbar seçilməyib və ya hələ yaradılmayıb.")
             return
         try:
+            # Anbarda heç commit olub-olmadığını yoxlayırıq
             if not self.repo.head.is_valid():
                 self.statusBar().showMessage("Anbarda hələ heç bir commit yoxdur.")
                 return
             
-            active_branch = self.repo.active_branch.name
-            commits = list(self.repo.iter_commits(active_branch, max_count=100))
-            self.statusBar().showMessage(f"'{active_branch}' filialının tarixçəsi yeniləndi.")
+            # Bütün lokal filialları yoxla və commitləri göstər
+            commits = list(self.repo.iter_commits('--all', max_count=100))
+            self.statusBar().showMessage(f"Bütün tarixçə yeniləndi. {len(commits)} commit tapıldı.")
         except (git.exc.GitCommandError, TypeError, ValueError):
             self.statusBar().showMessage("Anbarda hələ heç bir commit yoxdur.")
             return
