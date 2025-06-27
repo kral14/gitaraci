@@ -1,4 +1,4 @@
-# git_araci.py (SON VƏ YEKUN VERSİYA)
+# git_araci.py (BÜTÜN İKON DÜZƏLİŞLƏRİ EDİLMİŞ VERSİYA)
 import sys
 import os
 import git
@@ -19,13 +19,13 @@ if sys.platform == 'win32':
 
 from settings_window import SettingsWindow
 from gite_hazirla import PrepareRepoTab
-# EXE faylı üçün resursların yolunu təyin edən funksiya
+
+# --- DÜZƏLİŞ 1: BU FUNKSİYA İKONLARIN .EXE İÇİNDƏ TAPILMASI ÜÇÜN VACİBDİR ---
 def resource_path(relative_path):
     """ Həm skript, həm də EXE üçün resursların yolunu düzgün qaytarır. """
     try:
-        # PyInstaller müvəqqəti qovluq yaradır və yolu _MEIPASS-da saxlayır
         base_path = sys._MEIPASS
-    except Exception:
+    except AttributeError:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
@@ -34,7 +34,8 @@ APP_DATA_DIR = os.path.join(os.getenv('APPDATA'), 'GitAraci')
 if not os.path.exists(APP_DATA_DIR):
     os.makedirs(APP_DATA_DIR)
 SETTINGS_FILE = os.path.join(APP_DATA_DIR, 'settings.json')
-# DÜZƏLİŞ EDİLMİŞ STİL KODLARI
+
+# --- DÜZƏLİŞ 2: Stil kodlarından səhv sistem yolu (C:/Windows...) çıxarıldı ---
 LIGHT_THEME_STYLESHEET = """
     QMainWindow, QWidget, QGroupBox { background-color: #f0f0f0; color: #000000; }
     QGroupBox { border: 1px solid #c4c4c4; margin-top: 10px; }
@@ -52,7 +53,7 @@ LIGHT_THEME_STYLESHEET = """
     QStatusBar { background-color: #e1e1e1; }
     QCheckBox { padding: 5px; }
     QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #777; border-radius: 3px; }
-    QCheckBox::indicator:checked { background-color: #0078d7; border-color: #005a9e; image: url(C:/Windows/System32/shell32.dll,277,16,16); }
+    QCheckBox::indicator:checked { background-color: #0078d7; border-color: #005a9e; }
 """
 DARK_THEME_STYLESHEET = """
     QMainWindow, QWidget, QGroupBox { background-color: #2b2b2b; color: #ffffff; }
@@ -71,9 +72,9 @@ DARK_THEME_STYLESHEET = """
     QStatusBar { background-color: #3c3c3c; color: #ffffff; }
     QTableWidget::item:selected { background-color: #0078d7; color: #ffffff; }
     QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #888; border-radius: 3px; background-color: #444; }
-    QCheckBox::indicator:checked { background-color: #0078d7; border-color: #009cff; image: url(C:/Windows/System32/shell32.dll,277,16,16); }
+    QCheckBox::indicator:checked { background-color: #0078d7; border-color: #009cff; }
 """
-SETTINGS_FILE = 'settings.json'
+# Təkrar SETTINGS_FILE təyini silindi. Artıq yuxarıda düzgün təyin olunub.
 
 class IconWidget(QPushButton):
     def __init__(self, parent_window, initial_pos, on_top=True):
@@ -144,7 +145,9 @@ class GitApp(QMainWindow):
         self.settings = self.load_settings()
         self.setWindowTitle('Git Yönetim Aracı')
         self.setGeometry(300, 300, 800, 600)
-        self.setWindowIcon(QIcon('app_icon.jpg'))
+        
+        # --- DÜZƏLİŞ 4: ƏSAS PƏNCƏRƏ İKONU DÜZGÜN YOL İLƏ TƏYİN EDİLDİ ---
+        self.setWindowIcon(QIcon(resource_path('app_icon.jpg')))
 
         self.repo_path = self.settings.get('last_repo_path', None)
         self.repo = None
@@ -177,18 +180,24 @@ class GitApp(QMainWindow):
         top_bar_widget = QWidget()
         top_bar_layout = QHBoxLayout(top_bar_widget)
         top_bar_layout.setContentsMargins(0, 5, 0, 5)
+
+        # --- DÜZƏLİŞ 5: DÜYMƏLƏRİN İKONLARI DÜZGÜN YOL İLƏ TƏYİN EDİLDİ ---
+        # DİQQƏT: 'arrow_down.png' və 'settings_icon.png' adlı fayllarınız olmalıdır
         iconify_button = QPushButton()
-        iconify_button.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_ArrowDown))
+        iconify_button.setIcon(QIcon(resource_path('arrow_down.png')))
         iconify_button.setToolTip("Pəncərəni masaüstü ikonuna kiçilt")
         iconify_button.clicked.connect(self.iconify_window)
+        
         settings_button = QPushButton()
-        settings_button.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogDetailedView))
+        settings_button.setIcon(QIcon(resource_path('settings_icon.png')))
         settings_button.setToolTip("Ayarlar")
         settings_button.clicked.connect(self.open_settings_window)
+
         light_theme_button = QPushButton("🔆 Açıq Mövzu")
         dark_theme_button = QPushButton("🌙 Tünd Mövzu")
         light_theme_button.clicked.connect(self.set_light_theme)
         dark_theme_button.clicked.connect(self.set_dark_theme)
+        
         top_bar_layout.addWidget(iconify_button)
         top_bar_layout.addWidget(settings_button)
         top_bar_layout.addStretch()
@@ -214,7 +223,7 @@ class GitApp(QMainWindow):
 
     def create_tray_icon(self):
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(self.windowIcon())
+        self.tray_icon.setIcon(self.windowIcon()) # Bu, avtomatik olaraq əsas pəncərə ikonunu götürür
         tray_menu = QMenu()
         show_action = QAction("Göstər", self)
         quit_action = QAction("Çıxış", self)
@@ -321,7 +330,7 @@ class GitApp(QMainWindow):
         self.delete_button.clicked.connect(self.delete_commit)
         
         self.tabs.addTab(self.history_tab, 'Geçmişi Yönet')
-
+        
     def browse_for_history_path(self):
         path = QFileDialog.getExistingDirectory(self, "Tarixçə üçün Qovluq Seçin")
         if path:
@@ -382,8 +391,10 @@ class GitApp(QMainWindow):
 
     def open_settings_window(self):
         dialog = SettingsWindow(self, self.settings)
-        dialog.exec()
-        
+        if dialog.exec():
+            # OK düyməsi basıldıqda apply_and_save_settings çağırılır
+            pass
+
     def apply_and_save_settings(self, new_settings):
         self.settings = new_settings
         self.apply_settings()
@@ -391,10 +402,11 @@ class GitApp(QMainWindow):
 
     def apply_settings(self):
         always_on_top = self.settings.get("always_on_top", False)
+        flags = self.windowFlags()
         if always_on_top:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+            self.setWindowFlags(flags | Qt.WindowType.WindowStaysOnTopHint)
         else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
+            self.setWindowFlags(flags & ~Qt.WindowType.WindowStaysOnTopHint)
         
         if sys.platform == 'win32':
             startup_enabled = self.settings.get("start_on_startup", False)
@@ -405,7 +417,8 @@ class GitApp(QMainWindow):
     def set_startup(self, enable=True):
         if not sys.platform == 'win32': return
         app_name = "GitAraci"
-        app_path = f'"{sys.executable}" "{os.path.abspath(__file__)}"'
+        # EXE üçün yolu düzgün təyin etmək
+        app_path = f'"{sys.executable}"'
         try:
             key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
@@ -459,14 +472,11 @@ class GitApp(QMainWindow):
 
     def log_message(self, message, color_name="default"):
         current_style = self.styleSheet()
-        if "background-color: #2b2b2b" in current_style:
-            default_color_name = "#ffffff"
-        else:
-            default_color_name = "#000000"
-        if color_name == "default":
-            self.log_monitor.append(f"<p style='color: {default_color_name};'>{message}</p>")
-        else:
-            self.log_monitor.append(f"<p style='color: {color_name};'>{message}</p>")
+        is_dark = "background-color: #2b2b2b" in current_style
+        default_color = "#ffffff" if is_dark else "#000000"
+        
+        color = default_color if color_name == "default" else color_name
+        self.log_monitor.append(f"<p style='color: {color}; margin: 0;'>{message}</p>")
         QApplication.processEvents()
 
     def log_success(self, message):
@@ -533,10 +543,8 @@ class GitApp(QMainWindow):
                 self.log_message("Uzaq depoya (origin) qoşulur...")
                 origin = self.repo.remote(name='origin')
                 
-                refspec = ''
                 try:
-                    active_branch = self.repo.active_branch
-                    branch_name = active_branch.name
+                    branch_name = self.repo.active_branch.name
                     refspec = f'{branch_name}:{branch_name}'
                     self.log_message(f"'{branch_name}' filialı GitHub-a göndərilir (push)...")
                 except TypeError:
@@ -570,12 +578,13 @@ class GitApp(QMainWindow):
             return
         selected_row = selected_items[0].row()
         commit_hash = self.commit_table.item(selected_row, 0).text()
-        
+        full_hash = self.history_repo.commit(commit_hash).hexsha
+
         file_path, _ = QFileDialog.getSaveFileName(self, "ZIP Olarak Kaydet", f"versiyon_{commit_hash}.zip", "ZIP Dosyaları (*.zip)")
         if file_path:
             try:
                 with open(file_path, 'wb') as fp:
-                    self.history_repo.archive(fp, treeish=commit_hash, format='zip')
+                    self.history_repo.archive(fp, treeish=full_hash, format='zip')
                 self.statusBar().showMessage(f'{commit_hash} versiyonu başarıyla indirildi.')
                 QMessageBox.information(self, 'Başarılı', f'Versiyon başarıyla şuraya kaydedildi:\n{file_path}')
             except Exception as e:
@@ -592,6 +601,7 @@ class GitApp(QMainWindow):
             return
         selected_row = selected_items[0].row()
         commit_hash = self.commit_table.item(selected_row, 0).text()
+        full_hash = self.history_repo.commit(commit_hash).hexsha
         
         reply = QMessageBox.warning(self, 'ÇOX TƏHLÜKƏLİ ƏMƏLİYYAT!',
             f"Seçdiyiniz '{commit_hash}' commitinə geri qayıtmaq üzrəsiniz.\n\n"
@@ -603,12 +613,13 @@ class GitApp(QMainWindow):
         
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                self.history_repo.git.reset('--hard', commit_hash)
+                self.history_repo.git.reset('--hard', full_hash)
                 self.statusBar().showMessage(f'Proje {commit_hash} versiyonuna geri alındı. Sonraki commitler lokal olaraq silindi.')
                 QMessageBox.information(self, 'İşlem Tamamlandı', 'Proje seçilen versiyona başarıyla sıfırlandı.')
                 self.show_local_history()
             except Exception as e:
                 QMessageBox.critical(self, 'Hata', f'Reset işlemi sırasında bir hata oluştu:\n{e}')
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
