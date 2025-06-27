@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QApplication,
     QLabel, QTextEdit, QLineEdit
 )
-from PyQt6.QtGui import QFont, QColor
+from PyQt6.QtGui import QFont
 import git
 
 class PrepareRepoTab(QWidget):
