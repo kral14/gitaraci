@@ -9,27 +9,33 @@ from PyQt6.QtWidgets import (
     QHeaderView, QAbstractItemView, QGroupBox, QFileDialog, QInputDialog, QTabWidget
 )
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt
 
 class CombinedGitTool(QMainWindow):
     def __init__(self):
         super().__init__()
         self.github_token = None
         self.headers = {}
-        self.repos_data = []  # GitHub-dan gələn repo məlumatları
-        self.local_repo = None # Aktiv lokal depo obyekti (git.Repo)
-        self.temp_dir_for_remote_view = None # Yalnız uzaqdan baxmaq üçün müvəqqəti qovluq
-
+        self.repos_data = []
+        self.local_repo = None
+        
         self.init_ui()
-        self.setWindowTitle("Birləşdirilmiş Git Aləti (Test)")
+        self.setWindowTitle("Birləşdirilmiş Git Aləti v3 (Düzəlişli)")
         self.resize(1200, 800)
+
+    def center(self):
+        screen_geometry = self.screen().availableGeometry()
+        window_geometry = self.frameGeometry()
+        center_point = screen_geometry.center()
+        window_geometry.moveCenter(center_point)
+        self.move(window_geometry.topLeft())
 
     def init_ui(self):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
 
-        # 1. GİRİŞ BÖLMƏSİ
+        # ... (UI elementlərinin yaradılması eyni qalır) ...
         login_group = QGroupBox("1. GitHub Hesabına Giriş (Token ilə)")
         login_layout = QHBoxLayout()
         self.token_input = QLineEdit()
@@ -42,23 +48,25 @@ class CombinedGitTool(QMainWindow):
         login_group.setLayout(login_layout)
         main_layout.addWidget(login_group)
 
-        # 2. DEPO SEÇİMİ VƏ COMMIT CƏDVƏLİ
         content_layout = QHBoxLayout()
-        
-        # SOL PANEL: DEPO SEÇİMİ (TABLI GÖRÜNÜŞ)
         selection_group = QGroupBox("2. Depo Seçimi")
         selection_layout = QVBoxLayout()
         self.selection_tabs = QTabWidget()
-
-        # Onlayn Depo Seçimi Tabı
+        
         github_repos_widget = QWidget()
         github_repos_layout = QVBoxLayout(github_repos_widget)
-        github_repos_layout.addWidget(QLabel("Hesabınızdakı depolar:"))
+        repo_header_layout = QHBoxLayout()
+        repo_header_layout.addWidget(QLabel("Hesabınızdakı depolar:"))
+        repo_header_layout.addStretch()
+        self.refresh_repos_button = QPushButton("🔄 Yenilə")
+        self.refresh_repos_button.setToolTip("Depo siyahısını yenilə")
+        self.refresh_repos_button.setFixedWidth(100)
+        repo_header_layout.addWidget(self.refresh_repos_button)
+        github_repos_layout.addLayout(repo_header_layout)
         self.repo_list_widget = QListWidget()
         github_repos_layout.addWidget(self.repo_list_widget)
         self.selection_tabs.addTab(github_repos_widget, "GitHub Depolarım")
 
-        # Lokal Depo Seçimi Tabı
         local_repo_widget = QWidget()
         local_repo_layout = QVBoxLayout(local_repo_widget)
         local_repo_layout.addStretch()
@@ -71,7 +79,6 @@ class CombinedGitTool(QMainWindow):
         selection_layout.addWidget(self.selection_tabs)
         selection_group.setLayout(selection_layout)
 
-        # SAĞ PANEL: COMMIT CƏDVƏLİ VƏ ƏMƏLİYYATLAR
         right_panel_layout = QVBoxLayout()
         commit_group = QGroupBox("Commit Tarixçəsi")
         commit_layout = QVBoxLayout()
@@ -83,7 +90,6 @@ class CombinedGitTool(QMainWindow):
         commit_group.setLayout(commit_layout)
         right_panel_layout.addWidget(commit_group)
         
-        # Əməliyyatlar Paneli
         actions_group = QGroupBox("3. Əməliyyatlar")
         actions_layout = QVBoxLayout()
         self.local_path_label = QLineEdit("Hazırda heç bir lokal anbar aktiv deyil.")
@@ -108,21 +114,23 @@ class CombinedGitTool(QMainWindow):
         content_layout.addLayout(right_panel_layout, 5)
         main_layout.addLayout(content_layout)
 
-        # Siqnallar
+        # --- DÜZƏLİŞ: Siqnallar yenidən təşkil edildi ---
         self.login_button.clicked.connect(self.fetch_github_repos)
-        browse_button.clicked.connect(self.select_local_repo)
-        self.repo_list_widget.itemDoubleClicked.connect(self.clone_selected_repo)
+        self.refresh_repos_button.clicked.connect(self.fetch_github_repos)
+        browse_button.clicked.connect(self.activate_local_repo)
+        self.repo_list_widget.itemClicked.connect(self.display_remote_commits) # TƏK KLİK: commitləri göstər
+        self.repo_list_widget.itemDoubleClicked.connect(self.clone_selected_repo) # CÜT KLİK: klonla
         self.commit_button.clicked.connect(self.commit_and_push)
         self.download_button.clicked.connect(self.download_commit)
         
         self.update_ui_state()
 
     def update_ui_state(self):
-        """Proqramın vəziyyətinə görə düymələri aktiv/deaktiv edir."""
         is_local_repo_active = self.local_repo is not None
         self.commit_input.setEnabled(is_local_repo_active)
         self.commit_button.setEnabled(is_local_repo_active)
-        self.download_button.setEnabled(is_local_repo_active)
+        # Yükləmə düyməsini həm lokal, həm də seçilmiş uzaq depo üçün aktiv edək
+        self.download_button.setEnabled(is_local_repo_active or self.commit_table.rowCount() > 0)
         
         if is_local_repo_active:
             self.local_path_label.setText(self.local_repo.working_dir)
@@ -130,27 +138,64 @@ class CombinedGitTool(QMainWindow):
             self.local_path_label.setText("Hazırda heç bir lokal anbar aktiv deyil.")
 
     def fetch_github_repos(self):
-        """Token ilə GitHub-dan depoları gətirir."""
-        self.github_token = self.token_input.text().strip()
-        if not self.github_token: return self.show_error("Token daxil edilməyib.")
+        if not self.github_token:
+            self.github_token = self.token_input.text().strip()
+            if not self.github_token: return self.show_error("Token daxil edilməyib.")
 
+        self.statusBar().showMessage("Depolar GitHub-dan yüklənir...")
+        QApplication.processEvents()
+        
         self.headers = {"Authorization": f"token {self.github_token}"}
         try:
             user_info = requests.get("https://api.github.com/user", headers=self.headers).json()
-            repos_url = user_info['repos_url'] + '?per_page=100'
-            self.repos_data = requests.get(repos_url, headers=self.headers).json()
+            repos_url = user_info.get('repos_url', '') + '?per_page=100'
+            response = requests.get(repos_url, headers=self.headers)
+            response.raise_for_status()
             
+            self.repos_data = response.json()
             self.repo_list_widget.clear()
+            self.commit_table.setRowCount(0)
             for repo in self.repos_data:
                 self.repo_list_widget.addItem(repo['name'])
             
-            self.statusBar().showMessage(f"'{user_info['login']}' hesabındakı {len(self.repos_data)} depo tapıldı. Üzərində işləmək üçün depoya iki dəfə klikləyin.", 10000)
+            self.refresh_repos_button.setEnabled(True)
+            self.statusBar().showMessage(f"'{user_info.get('login')}' hesabındakı {len(self.repos_data)} depo tapıldı.", 10000)
 
+        except requests.exceptions.HTTPError as e:
+            self.show_error(f"GitHub API Xətası (Status {e.response.status_code}): Tokeninizi yoxlayın.")
+            self.github_token = None
         except Exception as e:
             self.show_error(f"GitHub ilə əlaqə xətası: {e}")
+            self.github_token = None
 
-    def select_local_repo(self):
-        """Lokal qovluq seçməyə imkan verir."""
+    # --- YENİ FUNKSİYA: Uzaqdan commitlərə baxmaq üçün ---
+    def display_remote_commits(self, item):
+        """Siyahıdan bir depo tək kliklə seçildikdə onun commitlərini göstərir (klonlamadan)."""
+        repo_name = item.text()
+        repo_data = next((repo for repo in self.repos_data if repo['name'] == repo_name), None)
+        if not repo_data: return
+
+        self.statusBar().showMessage(f"'{repo_name}' üçün uzaqdan commitlər yüklənir...")
+        QApplication.processEvents()
+        
+        # Lokal repo aktiv deyil, sadəcə baxış rejimidir
+        self.local_repo = None 
+        self.update_ui_state()
+
+        try:
+            commits_url = repo_data['commits_url'].replace('{/sha}', '') + '?per_page=100'
+            response = requests.get(commits_url, headers=self.headers)
+            response.raise_for_status()
+            commits = response.json()
+            
+            self.populate_commit_table_from_remote(commits)
+            self.statusBar().showMessage(f"'{repo_name}' üçün commitlər göstərilir. Klonlamaq üçün iki dəfə klikləyin.", 5000)
+
+        except Exception as e:
+            self.show_error(f"Uzaqdan commitlər yüklənərkən xəta: {e}")
+
+    def activate_local_repo(self):
+        """Lokal qovluq seçir və onu aktivləşdirir."""
         path = QFileDialog.getExistingDirectory(self, "Lokal Git Anbarını Seçin")
         if not path: return
         
@@ -163,9 +208,8 @@ class CombinedGitTool(QMainWindow):
             self.show_error(f"'{path}' etibarlı bir Git anbarı deyil.")
         except Exception as e:
             self.show_error(f"Lokal depo açılarkən xəta: {e}")
-            
+
     def clone_selected_repo(self, item):
-        """Siyahıdan seçilmiş deponu klonlayır."""
         repo_name = item.text()
         repo_data = next((repo for repo in self.repos_data if repo['name'] == repo_name), None)
         if not repo_data: return
@@ -188,13 +232,27 @@ class CombinedGitTool(QMainWindow):
 
             self.populate_commit_table_from_local()
             self.update_ui_state()
-            self.selection_tabs.setCurrentIndex(1) # Lokal Anbar tabına keç
+            self.selection_tabs.setCurrentIndex(1)
             
         except Exception as e:
             self.show_error(f"Klonlama xətası: {e}")
+    
+    def populate_commit_table_from_remote(self, commits):
+        """GitHub API-dən gələn commit məlumatlarını cədvələ doldurur."""
+        self.commit_table.setRowCount(0)
+        for commit_data in commits:
+            row = self.commit_table.rowCount()
+            self.commit_table.insertRow(row)
+            commit_info = commit_data.get('commit', {})
+            author_info = commit_info.get('author', {})
+            self.commit_table.setItem(row, 0, QTableWidgetItem(commit_data.get('sha', '')[:8]))
+            self.commit_table.setItem(row, 1, QTableWidgetItem(commit_info.get('message', '').split('\n')[0]))
+            self.commit_table.setItem(row, 2, QTableWidgetItem(author_info.get('name', 'N/A')))
+            self.commit_table.setItem(row, 3, QTableWidgetItem(author_info.get('date', '').replace('T', ' ').replace('Z', '')))
+        self.update_ui_state()
+
 
     def populate_commit_table_from_local(self):
-        """Aktiv lokal deponun commitlərini cədvələ doldurur."""
         self.commit_table.setRowCount(0)
         if not self.local_repo: return
         
@@ -207,6 +265,7 @@ class CombinedGitTool(QMainWindow):
                 self.commit_table.setItem(row, 1, QTableWidgetItem(commit.summary))
                 self.commit_table.setItem(row, 2, QTableWidgetItem(commit.author.name))
                 self.commit_table.setItem(row, 3, QTableWidgetItem(commit.authored_datetime.strftime('%Y-%m-%d %H:%M')))
+            self.update_ui_state()
         except Exception as e:
             self.show_error(f"Lokal tarixçəni göstərərkən xəta: {e}")
 
@@ -228,28 +287,47 @@ class CombinedGitTool(QMainWindow):
             
             QMessageBox.information(self, "Uğurlu", "Dəyişikliklər uğurla GitHub-a göndərildi!")
             self.commit_input.clear()
-            self.populate_commit_table_from_local() # Cədvəli yenilə
+            self.populate_commit_table_from_local()
 
         except Exception as e:
             self.show_error(f"Commit/Push xətası: {e}")
 
     def download_commit(self):
-        if not self.local_repo: return self.show_error("Əvvəlcə bir depo açın və ya klonlayın.")
-        
         selected = self.commit_table.selectedItems()
         if not selected: return self.show_error("Cədvəldən bir commit seçin.")
         
         commit_hash = self.commit_table.item(selected[0].row(), 0).text()
         
-        save_path, _ = QFileDialog.getSaveFileName(self, "Commiti ZIP olaraq saxla", f"{commit_hash}.zip", "ZIP Files (*.zip)")
-        if not save_path: return
-        
-        try:
-            with open(save_path, 'wb') as fp:
-                self.local_repo.archive(fp, treeish=commit_hash, format='zip')
-            QMessageBox.information(self, "Uğurlu", f"Arxiv uğurla yadda saxlandı.")
-        except Exception as e:
-            self.show_error(f"Yükləmə xətası: {e}")
+        # Əgər lokal repo aktivdirsə, ondan yüklə
+        if self.local_repo:
+            save_path, _ = QFileDialog.getSaveFileName(self, "Commiti ZIP olaraq saxla", f"{commit_hash}.zip", "ZIP Files (*.zip)")
+            if not save_path: return
+            try:
+                with open(save_path, 'wb') as fp:
+                    self.local_repo.archive(fp, treeish=commit_hash, format='zip')
+                QMessageBox.information(self, "Uğurlu", "Arxiv uğurla yadda saxlandı.")
+            except Exception as e:
+                self.show_error(f"Yükləmə xətası: {e}")
+        # Əks halda, uzaqdan (API ilə) yüklə
+        else:
+            repo_name_item = self.repo_list_widget.currentItem()
+            if not repo_name_item: return self.show_error("Yükləmə üçün depo seçilməyib.")
+            repo_name = repo_name_item.text()
+            repo_data = next((repo for repo in self.repos_data if repo['name'] == repo_name), None)
+            if not repo_data: return
+
+            archive_url = repo_data['archive_url'].format(archive_format='zipball', ref=commit_hash)
+            save_path, _ = QFileDialog.getSaveFileName(self, "Arxivi Yadda Saxla", f"{repo_name}-{commit_hash}.zip", "ZIP Files (*.zip)")
+            if not save_path: return
+            
+            try:
+                with requests.get(archive_url, headers=self.headers, stream=True) as r:
+                    r.raise_for_status()
+                    with open(save_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=8192): f.write(chunk)
+                QMessageBox.information(self, "Uğurlu", "Arxiv uğurla yadda saxlandı.")
+            except Exception as e:
+                self.show_error(f"Yükləmə zamanı xəta: {e}")
             
     def show_error(self, message):
         QMessageBox.warning(self, "Xəta", message)
@@ -259,4 +337,5 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = CombinedGitTool()
     window.show()
+    window.center() 
     sys.exit(app.exec())
