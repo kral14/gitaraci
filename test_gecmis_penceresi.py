@@ -20,7 +20,7 @@ class CombinedGitTool(QMainWindow):
         self.local_repo = None
         
         self.init_ui()
-        self.setWindowTitle("Birləşdirilmiş Git Aləti v3 (Düzəlişli)")
+        self.setWindowTitle("Birləşdirilmiş Git Aləti v4 (Stabil)")
         self.resize(1200, 800)
 
     def center(self):
@@ -35,7 +35,7 @@ class CombinedGitTool(QMainWindow):
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
 
-        # ... (UI elementlərinin yaradılması eyni qalır) ...
+        # 1. GİRİŞ BÖLMƏSİ
         login_group = QGroupBox("1. GitHub Hesabına Giriş (Token ilə)")
         login_layout = QHBoxLayout()
         self.token_input = QLineEdit()
@@ -48,15 +48,19 @@ class CombinedGitTool(QMainWindow):
         login_group.setLayout(login_layout)
         main_layout.addWidget(login_group)
 
+        # 2. DEPO SEÇİMİ VƏ COMMIT CƏDVƏLİ
         content_layout = QHBoxLayout()
+        
+        # SOL PANEL: DEPO SEÇİMİ (TABLI GÖRÜNÜŞ)
         selection_group = QGroupBox("2. Depo Seçimi")
         selection_layout = QVBoxLayout()
         self.selection_tabs = QTabWidget()
-        
+
+        # Onlayn Depo Seçimi Tabı
         github_repos_widget = QWidget()
         github_repos_layout = QVBoxLayout(github_repos_widget)
         repo_header_layout = QHBoxLayout()
-        repo_header_layout.addWidget(QLabel("Hesabınızdakı depolar:"))
+        repo_header_layout.addWidget(QLabel("Hesabınızdakı depolar (baxmaq üçün tək, klonlamaq üçün cüt klik):"))
         repo_header_layout.addStretch()
         self.refresh_repos_button = QPushButton("🔄 Yenilə")
         self.refresh_repos_button.setToolTip("Depo siyahısını yenilə")
@@ -67,6 +71,7 @@ class CombinedGitTool(QMainWindow):
         github_repos_layout.addWidget(self.repo_list_widget)
         self.selection_tabs.addTab(github_repos_widget, "GitHub Depolarım")
 
+        # Lokal Depo Seçimi Tabı
         local_repo_widget = QWidget()
         local_repo_layout = QVBoxLayout(local_repo_widget)
         local_repo_layout.addStretch()
@@ -79,6 +84,7 @@ class CombinedGitTool(QMainWindow):
         selection_layout.addWidget(self.selection_tabs)
         selection_group.setLayout(selection_layout)
 
+        # SAĞ PANEL: COMMIT CƏDVƏLİ VƏ ƏMƏLİYYATLAR
         right_panel_layout = QVBoxLayout()
         commit_group = QGroupBox("Commit Tarixçəsi")
         commit_layout = QVBoxLayout()
@@ -114,12 +120,12 @@ class CombinedGitTool(QMainWindow):
         content_layout.addLayout(right_panel_layout, 5)
         main_layout.addLayout(content_layout)
 
-        # --- DÜZƏLİŞ: Siqnallar yenidən təşkil edildi ---
+        # Siqnallar
         self.login_button.clicked.connect(self.fetch_github_repos)
         self.refresh_repos_button.clicked.connect(self.fetch_github_repos)
         browse_button.clicked.connect(self.activate_local_repo)
-        self.repo_list_widget.itemClicked.connect(self.display_remote_commits) # TƏK KLİK: commitləri göstər
-        self.repo_list_widget.itemDoubleClicked.connect(self.clone_selected_repo) # CÜT KLİK: klonla
+        self.repo_list_widget.itemClicked.connect(self.display_remote_commits)
+        self.repo_list_widget.itemDoubleClicked.connect(self.clone_selected_repo)
         self.commit_button.clicked.connect(self.commit_and_push)
         self.download_button.clicked.connect(self.download_commit)
         
@@ -129,13 +135,12 @@ class CombinedGitTool(QMainWindow):
         is_local_repo_active = self.local_repo is not None
         self.commit_input.setEnabled(is_local_repo_active)
         self.commit_button.setEnabled(is_local_repo_active)
-        # Yükləmə düyməsini həm lokal, həm də seçilmiş uzaq depo üçün aktiv edək
-        self.download_button.setEnabled(is_local_repo_active or self.commit_table.rowCount() > 0)
+        self.download_button.setEnabled(self.commit_table.rowCount() > 0)
         
         if is_local_repo_active:
             self.local_path_label.setText(self.local_repo.working_dir)
         else:
-            self.local_path_label.setText("Hazırda heç bir lokal anbar aktiv deyil.")
+            self.local_path_label.setText("Lokal anbarla işləmək üçün bir depo klonlayın və ya lokal qovluq seçin.")
 
     def fetch_github_repos(self):
         if not self.github_token:
@@ -148,11 +153,12 @@ class CombinedGitTool(QMainWindow):
         self.headers = {"Authorization": f"token {self.github_token}"}
         try:
             user_info = requests.get("https://api.github.com/user", headers=self.headers).json()
-            repos_url = user_info.get('repos_url', '') + '?per_page=100'
+            repos_url = user_info.get('repos_url', '') + '?per_page=200'
             response = requests.get(repos_url, headers=self.headers)
             response.raise_for_status()
             
             self.repos_data = response.json()
+            
             self.repo_list_widget.clear()
             self.commit_table.setRowCount(0)
             for repo in self.repos_data:
@@ -167,10 +173,8 @@ class CombinedGitTool(QMainWindow):
         except Exception as e:
             self.show_error(f"GitHub ilə əlaqə xətası: {e}")
             self.github_token = None
-
-    # --- YENİ FUNKSİYA: Uzaqdan commitlərə baxmaq üçün ---
+            
     def display_remote_commits(self, item):
-        """Siyahıdan bir depo tək kliklə seçildikdə onun commitlərini göstərir (klonlamadan)."""
         repo_name = item.text()
         repo_data = next((repo for repo in self.repos_data if repo['name'] == repo_name), None)
         if not repo_data: return
@@ -178,7 +182,6 @@ class CombinedGitTool(QMainWindow):
         self.statusBar().showMessage(f"'{repo_name}' üçün uzaqdan commitlər yüklənir...")
         QApplication.processEvents()
         
-        # Lokal repo aktiv deyil, sadəcə baxış rejimidir
         self.local_repo = None 
         self.update_ui_state()
 
@@ -195,7 +198,6 @@ class CombinedGitTool(QMainWindow):
             self.show_error(f"Uzaqdan commitlər yüklənərkən xəta: {e}")
 
     def activate_local_repo(self):
-        """Lokal qovluq seçir və onu aktivləşdirir."""
         path = QFileDialog.getExistingDirectory(self, "Lokal Git Anbarını Seçin")
         if not path: return
         
@@ -238,7 +240,6 @@ class CombinedGitTool(QMainWindow):
             self.show_error(f"Klonlama xətası: {e}")
     
     def populate_commit_table_from_remote(self, commits):
-        """GitHub API-dən gələn commit məlumatlarını cədvələ doldurur."""
         self.commit_table.setRowCount(0)
         for commit_data in commits:
             row = self.commit_table.rowCount()
@@ -250,7 +251,6 @@ class CombinedGitTool(QMainWindow):
             self.commit_table.setItem(row, 2, QTableWidgetItem(author_info.get('name', 'N/A')))
             self.commit_table.setItem(row, 3, QTableWidgetItem(author_info.get('date', '').replace('T', ' ').replace('Z', '')))
         self.update_ui_state()
-
 
     def populate_commit_table_from_local(self):
         self.commit_table.setRowCount(0)
@@ -269,6 +269,7 @@ class CombinedGitTool(QMainWindow):
         except Exception as e:
             self.show_error(f"Lokal tarixçəni göstərərkən xəta: {e}")
 
+    # --- DÜZƏLİŞ: 'fatal: You are not currently on a branch' xətası üçün düzəliş ---
     def commit_and_push(self):
         if not self.local_repo: return self.show_error("Heç bir lokal anbar aktiv deyil.")
         
@@ -283,22 +284,36 @@ class CombinedGitTool(QMainWindow):
             self.local_repo.git.add(A=True)
             self.local_repo.index.commit(commit_message)
             origin = self.local_repo.remote(name='origin')
-            origin.push()
             
-            QMessageBox.information(self, "Uğurlu", "Dəyişikliklər uğurla GitHub-a göndərildi!")
+            # Aktiv filialı yoxlayaq və ya əsas filiala göndərək
+            try:
+                # Əgər aktiv filial varsa, ona push et
+                active_branch = self.local_repo.active_branch
+                push_info = origin.push(active_branch.name)
+            except TypeError:
+                # Aktiv filial yoxdursa (detached HEAD), əsas filiala (main/master) push et
+                self.show_error("Aktiv filial tapılmadı (Detached HEAD). 'main' filialına göndərilir...")
+                push_info = origin.push('HEAD:main')
+
+            # Push nəticəsini yoxlayaq
+            if any(p.flags & git.PushInfo.ERROR for p in push_info):
+                error_summary = "\n".join(p.summary for p in push_info if p.flags & git.PushInfo.ERROR)
+                raise Exception(f"Push əməliyyatı zamanı xəta baş verdi:\n{error_summary}")
+            
+            QMessageBox.information(self, "Uğurlu", "Bütün dəyişikliklər uğurla GitHub-a göndərildi!")
             self.commit_input.clear()
             self.populate_commit_table_from_local()
 
         except Exception as e:
             self.show_error(f"Commit/Push xətası: {e}")
 
+    # --- DÜZƏLİŞ: 'KeyError: '/ref'' xətası üçün düzəliş ---
     def download_commit(self):
         selected = self.commit_table.selectedItems()
         if not selected: return self.show_error("Cədvəldən bir commit seçin.")
         
         commit_hash = self.commit_table.item(selected[0].row(), 0).text()
         
-        # Əgər lokal repo aktivdirsə, ondan yüklə
         if self.local_repo:
             save_path, _ = QFileDialog.getSaveFileName(self, "Commiti ZIP olaraq saxla", f"{commit_hash}.zip", "ZIP Files (*.zip)")
             if not save_path: return
@@ -308,7 +323,6 @@ class CombinedGitTool(QMainWindow):
                 QMessageBox.information(self, "Uğurlu", "Arxiv uğurla yadda saxlandı.")
             except Exception as e:
                 self.show_error(f"Yükləmə xətası: {e}")
-        # Əks halda, uzaqdan (API ilə) yüklə
         else:
             repo_name_item = self.repo_list_widget.currentItem()
             if not repo_name_item: return self.show_error("Yükləmə üçün depo seçilməyib.")
@@ -316,7 +330,9 @@ class CombinedGitTool(QMainWindow):
             repo_data = next((repo for repo in self.repos_data if repo['name'] == repo_name), None)
             if not repo_data: return
 
-            archive_url = repo_data['archive_url'].format(archive_format='zipball', ref=commit_hash)
+            # URL-i düzgün formatlayırıq
+            archive_url = repo_data['archive_url'].replace('{archive_format}{/ref}', f'zipball/{commit_hash}')
+            
             save_path, _ = QFileDialog.getSaveFileName(self, "Arxivi Yadda Saxla", f"{repo_name}-{commit_hash}.zip", "ZIP Files (*.zip)")
             if not save_path: return
             
