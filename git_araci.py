@@ -1,4 +1,4 @@
-# git_araci.py (BÜTÜN İKON DÜZƏLİŞLƏRİ EDİLMİŞ VERSİYA)
+# git_araci.py (Tema keçidi problemi həll edilmiş YEKUN VERSİYA)
 import sys
 import os
 import git
@@ -20,7 +20,6 @@ if sys.platform == 'win32':
 from settings_window import SettingsWindow
 from gite_hazirla import PrepareRepoTab
 
-# --- DÜZƏLİŞ 1: BU FUNKSİYA İKONLARIN .EXE İÇİNDƏ TAPILMASI ÜÇÜN VACİBDİR ---
 def resource_path(relative_path):
     """ Həm skript, həm də EXE üçün resursların yolunu düzgün qaytarır. """
     try:
@@ -29,13 +28,15 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-# Ayarlar faylının istifadəçi qovluğunda saxlanması
 APP_DATA_DIR = os.path.join(os.getenv('APPDATA'), 'GitAraci')
 if not os.path.exists(APP_DATA_DIR):
     os.makedirs(APP_DATA_DIR)
 SETTINGS_FILE = os.path.join(APP_DATA_DIR, 'settings.json')
 
-# --- DÜZƏLİŞ 2: Stil kodlarından səhv sistem yolu (C:/Windows...) çıxarıldı ---
+
+# --- DÜZƏLİŞ 1: Stil kodları yeniləndi ---
+# İndi IconButton adlı xüsusi düymələr üçün ayrıca stil var.
+# Bu, onların ümumi düymə stilindən təsirlənməsinin qarşısını alır.
 LIGHT_THEME_STYLESHEET = """
     QMainWindow, QWidget, QGroupBox { background-color: #f0f0f0; color: #000000; }
     QGroupBox { border: 1px solid #c4c4c4; margin-top: 10px; }
@@ -44,9 +45,20 @@ LIGHT_THEME_STYLESHEET = """
     QTabBar::tab { background: #e1e1e1; border: 1px solid #c4c4c4; padding: 8px; min-width: 100px; }
     QTabBar::tab:selected { background: #ffffff; margin-bottom: -1px; }
     QTabBar::tab:!selected:hover { background: #dcdcdc; }
+    /* Ümumi düymələr üçün stil (yazılı düymələr) */
     QPushButton { background-color: #e1e1e1; border: 1px solid #c4c4c4; padding: 5px; min-width: 80px; }
     QPushButton:hover { background-color: #dcdcdc; }
     QPushButton:pressed { background-color: #c4c4c4; }
+    /* Yalnız ikonlu düymələr üçün xüsusi stil */
+    QPushButton#IconButton {
+        background-color: transparent;
+        border: none;
+        min-width: 0px; /* Ümumi stildəki min-width dəyərini ləğv edir */
+        padding: 0px;
+    }
+    QPushButton#IconButton:hover { background-color: #dcdcdc; border-radius: 5px; }
+    QPushButton#IconButton:pressed { background-color: #c4c4c4; }
+    
     QTextEdit, QLineEdit, QTableWidget { background-color: #ffffff; color: #000000; border: 1px solid #c4c4c4; }
     QLabel { color: #000000; }
     QHeaderView::section { background-color: #e1e1e1; border: 1px solid #c4c4c4; padding: 4px; }
@@ -63,9 +75,20 @@ DARK_THEME_STYLESHEET = """
     QTabBar::tab { background: #3c3c3c; border: 1px solid #4f4f4f; padding: 8px; min-width: 100px; color: #ffffff; }
     QTabBar::tab:selected { background: #4f4f4f; margin-bottom: -1px; }
     QTabBar::tab:!selected:hover { background: #454545; }
+    /* Ümumi düymələr üçün stil */
     QPushButton { background-color: #3c3c3c; border: 1px solid #4f4f4f; padding: 5px; color: #ffffff; }
     QPushButton:hover { background-color: #454545; }
     QPushButton:pressed { background-color: #4f4f4f; }
+    /* Yalnız ikonlu düymələr üçün xüsusi stil */
+    QPushButton#IconButton {
+        background-color: transparent;
+        border: none;
+        min-width: 0px;
+        padding: 0px;
+    }
+    QPushButton#IconButton:hover { background-color: #454545; border-radius: 5px; }
+    QPushButton#IconButton:pressed { background-color: #4f4f4f; }
+
     QTextEdit, QLineEdit, QTableWidget { background-color: #252525; color: #ffffff; border: 1px solid #4f4f4f; }
     QLabel, QCheckBox { color: #ffffff; padding: 5px; }
     QHeaderView::section { background-color: #3c3c3c; border: 1px solid #4f4f4f; padding: 4px; color: #ffffff; }
@@ -74,9 +97,9 @@ DARK_THEME_STYLESHEET = """
     QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #888; border-radius: 3px; background-color: #444; }
     QCheckBox::indicator:checked { background-color: #0078d7; border-color: #009cff; }
 """
-# Təkrar SETTINGS_FILE təyini silindi. Artıq yuxarıda düzgün təyin olunub.
 
 class IconWidget(QPushButton):
+    # ... (Bu sinifdə dəyişiklik yoxdur, olduğu kimi qalır)
     def __init__(self, parent_window, initial_pos, on_top=True):
         super().__init__()
         self.parent_window = parent_window
@@ -145,8 +168,6 @@ class GitApp(QMainWindow):
         self.settings = self.load_settings()
         self.setWindowTitle('Git Yönetim Aracı')
         self.setGeometry(300, 300, 800, 600)
-        
-        # --- DÜZƏLİŞ 4: ƏSAS PƏNCƏRƏ İKONU DÜZGÜN YOL İLƏ TƏYİN EDİLDİ ---
         self.setWindowIcon(QIcon(resource_path('app_icon.jpg')))
 
         self.repo_path = self.settings.get('last_repo_path', None)
@@ -157,7 +178,9 @@ class GitApp(QMainWindow):
         self.main_widget = QWidget()
         self.main_layout = QVBoxLayout(self.main_widget)
         self.setCentralWidget(self.main_widget)
+        
         self.create_top_bar()
+        
         self.tabs = QTabWidget()
         self.main_layout.addWidget(self.tabs)
         self.create_push_tab()
@@ -170,7 +193,10 @@ class GitApp(QMainWindow):
 
         if self.repo_path and os.path.exists(self.repo_path):
             self.select_repo_directory(path=self.repo_path)
-        self.set_light_theme()
+            
+        # Başlanğıc temasını tətbiq et
+        self.set_dark_theme() # və ya self.set_light_theme()
+        
         self.prepare_tab.update_path_display(self.repo_path)
         if hasattr(self, 'history_local_path_input'):
             self.history_local_path_input.setText(self.repo_path or "")
@@ -181,15 +207,20 @@ class GitApp(QMainWindow):
         top_bar_layout = QHBoxLayout(top_bar_widget)
         top_bar_layout.setContentsMargins(0, 5, 0, 5)
 
-        # --- DÜZƏLİŞ 5: DÜYMƏLƏRİN İKONLARI DÜZGÜN YOL İLƏ TƏYİN EDİLDİ ---
-        # DİQQƏT: 'arrow_down.png' və 'settings_icon.png' adlı fayllarınız olmalıdır
+        # --- DÜZƏLİŞ 3: İkon düymələrinə xüsusi ad verildi və ölçüləri təyin edildi ---
         iconify_button = QPushButton()
+        iconify_button.setObjectName("IconButton") # Stil cədvəli üçün xüsusi ad
         iconify_button.setIcon(QIcon(resource_path('arrow_down.png')))
+        iconify_button.setIconSize(QSize(28, 28))
+        iconify_button.setFixedSize(QSize(40, 40))
         iconify_button.setToolTip("Pəncərəni masaüstü ikonuna kiçilt")
         iconify_button.clicked.connect(self.iconify_window)
         
         settings_button = QPushButton()
+        settings_button.setObjectName("IconButton") # Stil cədvəli üçün xüsusi ad
         settings_button.setIcon(QIcon(resource_path('settings_icon.png')))
+        settings_button.setIconSize(QSize(28, 28))
+        settings_button.setFixedSize(QSize(40, 40))
         settings_button.setToolTip("Ayarlar")
         settings_button.clicked.connect(self.open_settings_window)
 
@@ -205,14 +236,13 @@ class GitApp(QMainWindow):
         top_bar_layout.addWidget(dark_theme_button)
         self.main_layout.addWidget(top_bar_widget)
 
+    # ... (qalan bütün funksiyalar olduğu kimi qalır) ...
     def create_prepare_tab(self):
         self.prepare_tab = PrepareRepoTab(self)
         self.tabs.addTab(self.prepare_tab, "Gite Hazırla")
-
     def refresh_all_tabs(self):
         if self.history_repo is self.repo:
             self.show_local_history()
-
     def iconify_window(self):
         self.hide()
         pos_data = self.settings.get('icon_position')
@@ -220,10 +250,9 @@ class GitApp(QMainWindow):
         on_top = self.settings.get('iconify_on_top', True)
         self.icon_widget = IconWidget(self, initial_pos, on_top)
         self.icon_widget.show()
-
     def create_tray_icon(self):
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(self.windowIcon()) # Bu, avtomatik olaraq əsas pəncərə ikonunu götürür
+        self.tray_icon.setIcon(self.windowIcon())
         tray_menu = QMenu()
         show_action = QAction("Göstər", self)
         quit_action = QAction("Çıxış", self)
@@ -233,11 +262,9 @@ class GitApp(QMainWindow):
         tray_menu.addAction(quit_action)
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.activated.connect(self.on_tray_icon_activated)
-
     def on_tray_icon_activated(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.show_and_raise()
-
     def show_and_raise(self):
         if self.icon_widget and self.icon_widget.isVisible():
             self.icon_widget.restore_main_window()
@@ -245,11 +272,9 @@ class GitApp(QMainWindow):
             self.showNormal()
             self.raise_()
             self.activateWindow()
-
     def create_push_tab(self):
         self.push_tab = QWidget()
         layout = QVBoxLayout(self.push_tab)
-        
         repo_layout = QHBoxLayout()
         self.repo_label = QLabel('Proje Klasörü: Seçilmedi')
         browse_button = QPushButton('Gözat...')
@@ -257,32 +282,26 @@ class GitApp(QMainWindow):
         repo_layout.addWidget(self.repo_label)
         repo_layout.addWidget(browse_button)
         layout.addLayout(repo_layout)
-
         remote_layout = QHBoxLayout()
         remote_layout.addWidget(QLabel("GitHub Depo Linki:"))
         self.remote_url_input = QLineEdit()
         self.remote_url_input.setPlaceholderText("https://github.com/username/repo.git")
         remote_layout.addWidget(self.remote_url_input)
         layout.addLayout(remote_layout)
-        
         self.push_button = QPushButton('Değişiklikleri Gite Gönder')
         self.push_button.setEnabled(False) 
         self.push_button.clicked.connect(self.push_changes)
         layout.addWidget(self.push_button)
-        
         layout.addWidget(QLabel("Proses Monitoru:"))
         self.log_monitor = QTextEdit()
         self.log_monitor.setReadOnly(True)
         self.log_monitor.setFont(QFont("Consolas, Courier New", 10))
         self.log_monitor.setPlaceholderText("Git əməliyyatlarının nəticələri burada göstəriləcək...")
         layout.addWidget(self.log_monitor)
-        
         self.tabs.addTab(self.push_tab, 'Gite Gönder')
-
     def create_history_tab(self):
         self.history_tab = QWidget()
         layout = QVBoxLayout(self.history_tab)
-        
         local_group = QGroupBox("Lokal Anbar")
         local_layout = QHBoxLayout()
         self.history_local_path_input = QLineEdit()
@@ -294,7 +313,6 @@ class GitApp(QMainWindow):
         local_layout.addWidget(show_local_history_button)
         local_group.setLayout(local_layout)
         layout.addWidget(local_group)
-        
         remote_group = QGroupBox("Uzaq Anbar (GitHub)")
         remote_layout = QHBoxLayout()
         self.history_remote_url_input = QLineEdit()
@@ -304,7 +322,6 @@ class GitApp(QMainWindow):
         remote_layout.addWidget(show_remote_history_button)
         remote_group.setLayout(remote_layout)
         layout.addWidget(remote_group)
-        
         self.commit_table = QTableWidget()
         self.commit_table.setColumnCount(4)
         self.commit_table.setHorizontalHeaderLabels(['Hash', 'Mesaj', 'Yazar', 'Tarih'])
@@ -313,7 +330,6 @@ class GitApp(QMainWindow):
         self.commit_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.commit_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.commit_table)
-        
         button_layout = QHBoxLayout()
         self.download_button = QPushButton('Seçileni İndir (ZIP)')
         self.delete_button = QPushButton('Seçili Commiti Sil (Lokal Reset)')
@@ -322,26 +338,21 @@ class GitApp(QMainWindow):
         button_layout.addWidget(self.download_button)
         button_layout.addWidget(self.delete_button)
         layout.addLayout(button_layout)
-        
         browse_history_button.clicked.connect(self.browse_for_history_path)
         show_local_history_button.clicked.connect(self.show_local_history)
         show_remote_history_button.clicked.connect(self.show_remote_history)
         self.download_button.clicked.connect(self.download_commit)
         self.delete_button.clicked.connect(self.delete_commit)
-        
         self.tabs.addTab(self.history_tab, 'Geçmişi Yönet')
-        
     def browse_for_history_path(self):
         path = QFileDialog.getExistingDirectory(self, "Tarixçə üçün Qovluq Seçin")
         if path:
             self.history_local_path_input.setText(path)
-
     def show_local_history(self):
         path = self.history_local_path_input.text()
         if not path or not os.path.exists(path):
             QMessageBox.warning(self, "Xəta", "Zəhmət olmasa, düzgün lokal qovluq yolu seçin.")
             return
-        
         try:
             repo = git.Repo(path)
             self.history_repo = repo
@@ -352,19 +363,15 @@ class GitApp(QMainWindow):
             QMessageBox.warning(self, "Xəta", "Seçilmiş qovluq etibarlı bir Git anbarı deyil.")
         except Exception as e:
             QMessageBox.critical(self, "Xəta", f"Lokal tarixçəni göstərərkən xəta baş verdi: {e}")
-
     def show_remote_history(self):
         url = self.history_remote_url_input.text().strip()
         if not url.startswith("https://") or not url.endswith(".git"):
             QMessageBox.warning(self, "Xəta", "Zəhmət olmasa, düzgün HTTPS Git URL daxil edin.")
             return
-
         if self.temp_clone_dir and os.path.exists(self.temp_clone_dir):
             shutil.rmtree(self.temp_clone_dir, ignore_errors=True)
-        
         self.temp_clone_dir = tempfile.mkdtemp()
         self.statusBar().showMessage(f"Uzaq depo klonlanır... {url}")
-        
         try:
             cloned_repo = git.Repo.clone_from(url, self.temp_clone_dir, no_checkout=True)
             self.history_repo = cloned_repo
@@ -374,13 +381,11 @@ class GitApp(QMainWindow):
         except Exception as e:
             self.statusBar().showMessage("Klonlama zamanı xəta.")
             QMessageBox.critical(self, "Xəta", f"Uzaq depo klonlanarkən xəta baş verdi: {e}")
-
     def populate_history_table(self, commits):
         self.commit_table.setRowCount(0)
         if not commits:
             self.statusBar().showMessage("Göstəriləcək commit tapılmadı.")
             return
-
         for commit in commits:
             row_position = self.commit_table.rowCount()
             self.commit_table.insertRow(row_position)
@@ -388,18 +393,13 @@ class GitApp(QMainWindow):
             self.commit_table.setItem(row_position, 1, QTableWidgetItem(commit.message.split('\n')[0]))
             self.commit_table.setItem(row_position, 2, QTableWidgetItem(commit.author.name))
             self.commit_table.setItem(row_position, 3, QTableWidgetItem(commit.authored_datetime.strftime('%Y-%m-%d %H:%M')))
-
     def open_settings_window(self):
         dialog = SettingsWindow(self, self.settings)
-        if dialog.exec():
-            # OK düyməsi basıldıqda apply_and_save_settings çağırılır
-            pass
-
+        dialog.exec()
     def apply_and_save_settings(self, new_settings):
         self.settings = new_settings
         self.apply_settings()
         self.save_settings()
-
     def apply_settings(self):
         always_on_top = self.settings.get("always_on_top", False)
         flags = self.windowFlags()
@@ -407,17 +407,13 @@ class GitApp(QMainWindow):
             self.setWindowFlags(flags | Qt.WindowType.WindowStaysOnTopHint)
         else:
             self.setWindowFlags(flags & ~Qt.WindowType.WindowStaysOnTopHint)
-        
         if sys.platform == 'win32':
             startup_enabled = self.settings.get("start_on_startup", False)
             self.set_startup(startup_enabled)
-        
         self.show()
-
     def set_startup(self, enable=True):
         if not sys.platform == 'win32': return
         app_name = "GitAraci"
-        # EXE üçün yolu düzgün təyin etmək
         app_path = f'"{sys.executable}"'
         try:
             key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -432,25 +428,21 @@ class GitApp(QMainWindow):
             winreg.CloseKey(key)
         except Exception as e:
             print(f"Windows Registry ilə işləyərkən xəta: {e}")
-
     def load_settings(self):
         if os.path.exists(SETTINGS_FILE):
             try:
                 with open(SETTINGS_FILE, 'r') as f: return json.load(f)
             except (json.JSONDecodeError, IOError): return {}
         return {}
-
     def save_settings(self):
         try:
             with open(SETTINGS_FILE, 'w') as f:
                 json.dump(self.settings, f, indent=4)
         except IOError:
             self.statusBar().showMessage("Ayarlar yadda saxlanıla bilmədi.")
-            
     def closeEvent(self, event):
         if self.temp_clone_dir and os.path.exists(self.temp_clone_dir):
             shutil.rmtree(self.temp_clone_dir, ignore_errors=True)
-            
         self.save_settings()
         if self.settings.get("minimize_to_tray", False) and self.isVisible():
             event.ignore()
@@ -459,32 +451,24 @@ class GitApp(QMainWindow):
             self.tray_icon.showMessage("Git Aracı", "Proqram arxa fonda işləyir.", self.windowIcon(), 2000)
         else:
             self.quit_application()
-
     def quit_application(self):
         self.tray_icon.hide()
         QApplication.instance().quit()
-
     def set_light_theme(self):
         self.setStyleSheet(LIGHT_THEME_STYLESHEET)
-
     def set_dark_theme(self):
         self.setStyleSheet(DARK_THEME_STYLESHEET)
-
     def log_message(self, message, color_name="default"):
         current_style = self.styleSheet()
         is_dark = "background-color: #2b2b2b" in current_style
         default_color = "#ffffff" if is_dark else "#000000"
-        
         color = default_color if color_name == "default" else color_name
         self.log_monitor.append(f"<p style='color: {color}; margin: 0;'>{message}</p>")
         QApplication.processEvents()
-
     def log_success(self, message):
         self.log_message(message, "limegreen")
-
     def log_error(self, message):
         self.log_message(message, "red")
-
     def select_repo_directory(self, path=None):
         if not path:
             path = QFileDialog.getExistingDirectory(self, "Git Proje Klasörü Seç")
@@ -498,31 +482,24 @@ class GitApp(QMainWindow):
                     self.remote_url_input.setText(origin_url)
             except git.InvalidGitRepositoryError:
                 self.repo = None
-            
             self.settings['last_repo_path'] = path
             self.repo_label.setText(f'Proje Klasörü: {self.repo_path}')
             self.history_local_path_input.setText(self.repo_path)
-            
             self.push_button.setEnabled(self.repo is not None)
-            
             self.refresh_all_tabs()
             self.prepare_tab.update_path_display(self.repo_path)
-
     def push_changes(self):
         if not self.repo: return
-        
         remote_url = self.remote_url_input.text().strip()
         if not remote_url:
             QMessageBox.warning(self, "Xəta", "Zəhmət olmasa, GitHub depo linkini daxil edin.")
             return
-
         self.log_monitor.clear()
         self.log_message("Dəyişikliklər yoxlanılır...")
         if not self.repo.is_dirty(untracked_files=True):
             self.log_message("Göndəriləcək yeni bir dəyişiklik tapılmadı.")
             QMessageBox.information(self, "Məlumat", "Göndəriləcək yeni dəyişiklik yoxdur.")
             return
-            
         commit_message, ok = QInputDialog.getText(self, 'Commit Mesajı', 'Dəyişikliyi təsvir edin:')
         if ok and commit_message:
             try:
@@ -535,25 +512,22 @@ class GitApp(QMainWindow):
                 else:
                     self.repo.create_remote('origin', remote_url)
                     self.log_message("'origin' adlı yeni remote yaradıldı.")
-
                 self.log_message("Bütün dəyişikliklər Git-ə əlavə edilir (git add .)...")
                 self.repo.git.add(A=True)
                 self.log_message(f"Commit yaradılır: '{commit_message}'...")
                 self.repo.index.commit(commit_message)
                 self.log_message("Uzaq depoya (origin) qoşulur...")
                 origin = self.repo.remote(name='origin')
-                
                 try:
-                    branch_name = self.repo.active_branch.name
+                    active_branch = self.repo.active_branch
+                    branch_name = active_branch.name
                     refspec = f'{branch_name}:{branch_name}'
                     self.log_message(f"'{branch_name}' filialı GitHub-a göndərilir (push)...")
                 except TypeError:
                     branch_name = 'main'
                     refspec = f'HEAD:{branch_name}'
                     self.log_message(f"XƏBƏRDARLIQ: Anbar birbaşa bir commit-ə bağlıdır ('detached HEAD'). Dəyişikliklər uzaq depodakı '{branch_name}' filialına göndərilir.", "orange")
-                
                 push_info = origin.push(refspec=refspec, set_upstream=True)
-                
                 if push_info[0].flags & git.PushInfo.ERROR:
                     self.log_error(f"XƏTA! Dəyişikliklər göndərilə bilmədi: {push_info[0].summary}")
                     QMessageBox.critical(self, "Xəta", f"Push əməliyyatı zamanı xəta:\n{push_info[0].summary}")
@@ -566,12 +540,10 @@ class GitApp(QMainWindow):
                 QMessageBox.critical(self, 'Xəta', f'Bir xəta baş verdi:\n{e}')
         else:
             self.log_message("Commit əməliyyatı ləğv edildi.")
-
     def download_commit(self):
         if not self.history_repo:
             QMessageBox.warning(self, "Məlumat", "Zəhmət olmasa, əvvəlcə bir tarixçə göstərin.")
             return
-
         selected_items = self.commit_table.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, 'Uyarı', 'Lütfen indirmek için tablodan bir commit seçin.')
@@ -579,7 +551,6 @@ class GitApp(QMainWindow):
         selected_row = selected_items[0].row()
         commit_hash = self.commit_table.item(selected_row, 0).text()
         full_hash = self.history_repo.commit(commit_hash).hexsha
-
         file_path, _ = QFileDialog.getSaveFileName(self, "ZIP Olarak Kaydet", f"versiyon_{commit_hash}.zip", "ZIP Dosyaları (*.zip)")
         if file_path:
             try:
@@ -589,12 +560,10 @@ class GitApp(QMainWindow):
                 QMessageBox.information(self, 'Başarılı', f'Versiyon başarıyla şuraya kaydedildi:\n{file_path}')
             except Exception as e:
                 QMessageBox.critical(self, 'Hata', f'İndirme sırasında bir hata oluştu:\n{e}')
-
     def delete_commit(self):
         if not self.history_repo or not self.delete_button.isEnabled():
             QMessageBox.warning(self, "Məlumat", "Bu əməliyyat yalnız lokal tarixçə üçün keçərlidir.")
             return
-
         selected_items = self.commit_table.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, 'Uyarı', 'Lütfen geri dönmek üçün bir commit seçin.')
@@ -602,7 +571,6 @@ class GitApp(QMainWindow):
         selected_row = selected_items[0].row()
         commit_hash = self.commit_table.item(selected_row, 0).text()
         full_hash = self.history_repo.commit(commit_hash).hexsha
-        
         reply = QMessageBox.warning(self, 'ÇOX TƏHLÜKƏLİ ƏMƏLİYYAT!',
             f"Seçdiyiniz '{commit_hash}' commitinə geri qayıtmaq üzrəsiniz.\n\n"
             "Bu əməliyyat, bu commitdən sonra edilən bütün dəyişiklikləri **LOKAL ANBARINIZDAN** qalıcı olaraq siləcək.\n"
@@ -610,7 +578,6 @@ class GitApp(QMainWindow):
             "Davam etməyə əminsinizmi?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No)
-        
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 self.history_repo.git.reset('--hard', full_hash)
